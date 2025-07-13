@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Web Walkie-Talkie</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #3498db;
+            --accent: #e74c3c;
+            --text: #ecf0f1;
+            --bg: #1a1a2e;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 500px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            color: var(--secondary);
+            margin-bottom: 5px;
+        }
+        
+        .status {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        
+        .walkie-talkie {
+            background: linear-gradient(145deg, #1e1e3a, #232347);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .display {
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+        }
+        
+        .channel-display {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        
+        .signal {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .signal-bar {
+            width: 5px;
+            height: 15px;
+            background-color: #2ecc71;
+            margin: 0 2px;
+            border-radius: 3px;
+            transition: all 0.3s ease;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .control-btn {
+            background-color: var(--primary);
+            color: var(--text);
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        .control-btn.active {
+            background-color: var(--secondary);
+            color: white;
+        }
+        
+        .talk-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            box-shadow: 0 6px 12px rgba(231, 76, 60, 0.3);
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .talk-btn:active, .talk-btn.active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 6px rgba(231, 76, 60, 0.3);
+        }
+        
+        .talk-btn::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: rgba(231, 76, 60, 0.5);
+            animation: pulse 1.5s infinite;
+            z-index: -1;
+            opacity: 0;
+        }
+        
+        .talk-btn.active::after {
+            opacity: 1;
+        }
+        
+        @keyframes pulse {
+            0% {
+                transform: scale(0.8);
+                opacity: 0.5;
+            }
+            70% {
+                transform: scale(1.2);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(0.8);
+                opacity: 0;
+            }
+        }
+        
+        .volume-meter {
+            width: 100%;
+            height: 10px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        
+        .volume-level {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #2ecc71, #f1c40f);
+            border-radius: 5px;
+            transition: width 0.1s ease;
+        }
+        
+        .effects {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
+        }
+        
+        .effect-btn {
+            background-color: var(--primary);
+            color: var(--text);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .effect-btn:hover {
+            background-color: var(--secondary);
+        }
+        
+        .effect-btn.active {
+            background-color: var(--secondary);
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 15px;
+            font-size: 14px;
+        }
+        
+        .connection-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #e74c3c;
+            margin-right: 8px;
+            animation: blink 1.5s infinite;
+        }
+        
+        .connection-dot.connected {
+            background-color: #2ecc71;
+            animation: none;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .radio-wave {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        .wave {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid rgba(52, 152, 219, 0.3);
+            border-radius: 50%;
+            opacity: 0;
+        }
+        
+        .active-wave {
+            animation: wave 2s linear forwards;
+        }
+        
+        @keyframes wave {
+            0% {
+                width: 0;
+                height: 0;
+                opacity: 0.5;
+            }
+            100% {
+                width: 300px;
+                height: 300px;
+                opacity: 0;
+            }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: var(--secondary);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            transform: translateX(200%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>WEB WALKIE-TALKIE</h1>
+            <div class="status" id="connectionStatus">Connecting to network...</div>
+        </header>
+        
+        <div class="walkie-talkie">
+            <div class="radio-wave" id="radioWave"></div>
+            
+            <div class="display">
+                <div class="channel-display">CHANNEL <span id="channelNumber">01</span></div>
+                <div class="signal" id="signalStrength">
+                    <div class="signal-bar"></div>
+                    <div class="signal-bar"></div>
+                    <div class="signal-bar"></div>
+                    <div class="signal-bar"></div>
+                    <div class="signal-bar"></div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="control-btn" id="powerBtn"><i class="fas fa-power-off"></i></button>
+                <button class="control-btn" id="channelUpBtn"><i class="fas fa-chevron-up"></i></button>
+                <button class="control-btn" id="channelDownBtn"><i class="fas fa-chevron-down"></i></button>
+                <button class="control-btn" id="settingsBtn"><i class="fas fa-cog"></i></button>
+            </div>
+            
+            <button class="talk-btn" id="talkButton">
+                <i class="fas fa-microphone"></i>
+            </button>
+            
+            <div class="volume-meter">
+                <div class="volume-level" id="volumeLevel"></div>
+            </div>
+            
+            <div class="effects">
+                <button class="effect-btn" data-effect="clear">Clear</button>
+                <button class="effect-btn" data-effect="radio">Radio</button>
+                <button class="effect-btn" data-effect="walkie">Walkie</button>
+                <button class="effect-btn" data-effect="robot">Robot</button>
+                <button class="effect-btn" data-effect="echo">Echo</button>
+            </div>
+            
+            <div class="connection-status">
+                <div class="connection-dot" id="connectionDot"></div>
+                <span id="connectionText">Connecting...</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="notification" id="notification">
+        <i class="fas fa-broadcast-tower"></i> <span id="notificationText">Connected to channel 1</span>
+    </div>
+    
+    <audio id="receiveAudio"></audio>
+    
+    <script src="app.js"></script>
+</body>
+</html>
