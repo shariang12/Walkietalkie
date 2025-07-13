@@ -1,19 +1,19 @@
 document.addEventListener('DOMContentLoaded', function() {
     // DOM Elements
+    const walkieBody = document.getElementById('walkieBody');
+    const screen = document.getElementById('screen');
     const talkButton = document.getElementById('talkButton');
     const powerBtn = document.getElementById('powerBtn');
     const channelUpBtn = document.getElementById('channelUpBtn');
     const channelDownBtn = document.getElementById('channelDownBtn');
     const channelNumber = document.getElementById('channelNumber');
     const volumeLevel = document.getElementById('volumeLevel');
-    const signalStrength = document.getElementById('signalStrength');
-    const connectionStatus = document.getElementById('connectionStatus');
-    const connectionDot = document.getElementById('connectionDot');
-    const connectionText = document.getElementById('connectionText');
-    const notification = document.getElementById('notification');
-    const notificationText = document.getElementById('notificationText');
-    const radioWave = document.getElementById('radioWave');
+    const status = document.getElementById('status');
+    const powerLight = document.getElementById('powerLight');
+    const antenna = document.getElementById('antenna');
+    const lightParticles = document.getElementById('lightParticles');
     const receiveAudio = document.getElementById('receiveAudio');
+    const effectsPanel = document.getElementById('effectsPanel');
     const effectButtons = document.querySelectorAll('.effect-btn');
     
     // App State
@@ -26,44 +26,71 @@ document.addEventListener('DOMContentLoaded', function() {
     let mediaStream;
     let processor;
     let destination;
-    let websocket;
-    let audioChunks = [];
     let mediaRecorder;
+    let audioChunks = [];
     
-    // Initialize the app
+    // Initialize
     init();
     
     function init() {
         setupAudio();
-        setupWebSocket();
         updateUI();
-        simulateSignalStrength();
+        createParticles();
         
-        // Set up effect buttons
+        // Set active effect button
         effectButtons.forEach(btn => {
+            if (btn.dataset.active === 'true') {
+                btn.classList.add('active');
+            }
+            
             btn.addEventListener('click', function() {
                 currentEffect = this.dataset.effect;
                 effectButtons.forEach(b => b.classList.remove('active'));
                 this.classList.add('active');
-                showNotification(`Effect set to ${currentEffect}`);
+                updateStatus(`EFFECT: ${currentEffect.toUpperCase()}`);
+                
+                // Add light effect
+                addButtonPressEffect(this);
             });
         });
         
-        // Set the walkie effect as active by default
-        document.querySelector('.effect-btn[data-effect="walkie"]').classList.add('active');
+        // Power button
+        powerBtn.addEventListener('click', function() {
+            togglePower();
+            addButtonPressEffect(this);
+        });
+        
+        // Channel buttons
+        channelUpBtn.addEventListener('click', function() {
+            if (!isOn) return;
+            changeChannel(1);
+            addButtonPressEffect(this);
+        });
+        
+        channelDownBtn.addEventListener('click', function() {
+            if (!isOn) return;
+            changeChannel(-1);
+            addButtonPressEffect(this);
+        });
+        
+        // Talk button events
+        talkButton.addEventListener('mousedown', startTalking);
+        talkButton.addEventListener('touchstart', startTalking);
+        talkButton.addEventListener('mouseup', stopTalking);
+        talkButton.addEventListener('touchend', stopTalking);
+        talkButton.addEventListener('mouseleave', stopTalking);
     }
     
     function setupAudio() {
         try {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
-            // Request microphone access
             navigator.mediaDevices.getUserMedia({ audio: true })
                 .then(stream => {
                     mediaStream = stream;
                     microphone = audioContext.createMediaStreamSource(stream);
                     
-                    // Create media recorder for playback simulation
+                    // Media recorder for playback simulation
                     mediaRecorder = new MediaRecorder(stream);
                     mediaRecorder.ondataavailable = (e) => {
                         audioChunks.push(e.data);
@@ -72,46 +99,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     mediaRecorder.onstop = () => {
                         const audioBlob = new Blob(audioChunks, { type: 'audio/ogg' });
                         audioChunks = [];
-                        
-                        // In a real app, you would send this to other clients via WebSocket
-                        // For demo, we'll just play it back locally with effects
                         simulateReceiveAudio(audioBlob);
                     };
                     
-                    // Create audio processor for real-time effects
+                    // Audio processor for real-time effects
                     processor = audioContext.createScriptProcessor(4096, 1, 1);
                     processor.onaudioprocess = processAudio;
                     
                     destination = audioContext.createMediaStreamDestination();
-                    
-                    // Connect nodes based on current effect
                     updateAudioChain();
                     
-                    console.log('Audio setup complete');
+                    updateStatus('READY');
                 })
                 .catch(err => {
-                    console.error('Error accessing microphone:', err);
-                    showNotification('Microphone access denied', true);
+                    console.error('Microphone error:', err);
+                    updateStatus('MIC ERROR', true);
                 });
         } catch (e) {
-            console.error('Error initializing audio context:', e);
-            showNotification('Audio not supported', true);
+            console.error('Audio context error:', e);
+            updateStatus('AUDIO ERROR', true);
         }
-    }
-    
-    function updateAudioChain() {
-        if (!microphone || !processor || !destination) return;
-        
-        // Disconnect all nodes first
-        microphone.disconnect();
-        processor.disconnect();
-        
-        // Connect based on effect
-        microphone.connect(processor);
-        processor.connect(destination);
-        
-        // For demo purposes, we're not actually streaming the processed audio
-        // In a real app, you would stream the destination stream
     }
     
     function processAudio(e) {
@@ -136,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 applyEchoEffect(input, output);
                 break;
             default:
-                // Clear effect - just copy input to output
+                // Clear effect
                 for (let i = 0; i < input.length; i++) {
                     output[i] = input[i];
                 }
@@ -145,13 +152,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function applyRadioEffect(input, output) {
         for (let i = 0; i < input.length; i++) {
-            // AM radio effect with some distortion
             output[i] = Math.tanh(input[i] * 3) * 0.6;
-            
-            // Add some noise
             output[i] += (Math.random() * 0.05 - 0.025);
             
-            // Simple band-pass effect
             if (i > 0) {
                 output[i] = output[i] * 0.7 + output[i-1] * 0.3;
             }
@@ -160,12 +163,10 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function applyWalkieEffect(input, output) {
         for (let i = 0; i < input.length; i++) {
-            // Classic walkie-talkie effect with clipping
             let val = input[i] * 2.5;
-            val = Math.max(-0.8, Math.min(0.8, val)); // Clip
+            val = Math.max(-0.8, Math.min(0.8, val));
             output[i] = val;
             
-            // Add click at the beginning (push-to-talk sound)
             if (i < 10 && isTalking) {
                 output[i] += (10 - i) * 0.02;
             }
@@ -173,11 +174,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function applyRobotEffect(input, output) {
-        const freq = 50; // Robot frequency
+        const freq = 50;
         const sampleRate = audioContext.sampleRate;
         
         for (let i = 0; i < input.length; i++) {
-            // Ring modulation for robot effect
             const t = (i + robotPhase) / sampleRate;
             const modulator = Math.sin(2 * Math.PI * freq * t);
             output[i] = input[i] * modulator * 3;
@@ -188,10 +188,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let robotPhase = 0;
     
     function applyEchoEffect(input, output) {
-        const delaySamples = audioContext.sampleRate * 0.3; // 300ms delay
+        const delaySamples = audioContext.sampleRate * 0.3;
         const decay = 0.5;
         
-        // Initialize echo buffer if needed
         if (!this.echoBuffer || this.echoBuffer.length !== delaySamples) {
             this.echoBuffer = new Float32Array(delaySamples);
             this.echoPointer = 0;
@@ -200,202 +199,78 @@ document.addEventListener('DOMContentLoaded', function() {
         for (let i = 0; i < input.length; i++) {
             const echoValue = this.echoBuffer[this.echoPointer];
             output[i] = input[i] + echoValue * decay;
-            
-            // Store the new value in the echo buffer
             this.echoBuffer[this.echoPointer] = input[i];
             this.echoPointer = (this.echoPointer + 1) % delaySamples;
         }
     }
     
     function updateVolumeMeter(input) {
-        // Calculate RMS volume
         let sum = 0;
         for (let i = 0; i < input.length; i++) {
             sum += input[i] * input[i];
         }
         const rms = Math.sqrt(sum / input.length);
-        
-        // Convert to 0-100 scale
         const volume = Math.min(100, Math.round(rms * 200));
-        
-        // Update volume meter
         volumeLevel.style.width = `${volume}%`;
+    }
+    
+    function updateAudioChain() {
+        if (!microphone || !processor || !destination) return;
         
-        // Change color based on volume
-        if (volume > 80) {
-            volumeLevel.style.background = '#e74c3c';
-        } else if (volume > 50) {
-            volumeLevel.style.background = '#f1c40f';
+        microphone.disconnect();
+        processor.disconnect();
+        microphone.connect(processor);
+        processor.connect(destination);
+    }
+    
+    function togglePower() {
+        isOn = !isOn;
+        
+        if (isOn) {
+            powerLight.classList.add('on');
+            antenna.classList.add('active');
+            walkieBody.classList.add('active-screen');
+            updateStatus('POWER ON');
+            
+            // Play power on sound
+            playBeep(800, 0.1, 0.1);
         } else {
-            volumeLevel.style.background = 'linear-gradient(90deg, #2ecc71, #f1c40f)';
-        }
-    }
-    
-    function setupWebSocket() {
-        // In a real app, you would connect to your WebSocket server here
-        // For this demo, we'll simulate the connection
-        
-        setTimeout(() => {
-            connectionStatus.textContent = "Secullar Network";
-            connectionDot.classList.add('connected');
-            connectionText.textContent = "Connected";
+            powerLight.classList.remove('on');
+            antenna.classList.remove('active');
+            walkieBody.classList.remove('active-screen');
+            updateStatus('POWER OFF');
             
-            showNotification(`Connected to channel ${currentChannel}`);
-        }, 2000);
-        
-        // Simulate incoming messages
-        setInterval(() => {
-            if (Math.random() > 0.9 && !isTalking) {
-                simulateIncomingTransmission();
-            }
-        }, 10000);
-    }
-    
-    function simulateIncomingTransmission() {
-        if (!isOn) return;
-        
-        showNotification(`Incoming transmission on channel ${currentChannel}`);
-        
-        // Create a synthetic radio voice message
-        const synth = window.speechSynthesis;
-        if (synth) {
-            const utterance = new SpeechSynthesisUtterance(
-                `This is a test transmission on channel ${currentChannel}. Over.`
-            );
-            
-            // Apply some voice settings
-            const voices = synth.getVoices();
-            if (voices.length > 0) {
-                utterance.voice = voices.find(v => v.name.includes('Male')) || voices[0];
-                utterance.rate = 0.9;
-                utterance.pitch = 0.8;
+            // Stop any current transmission
+            if (isTalking) {
+                stopTalking(new Event('powerOff'));
             }
             
-            // Create a media stream from the speech synthesis
-            const audioStream = new MediaStream();
-            const audioTrack = new MediaStreamTrack();
-            audioStream.addTrack(audioTrack);
-            
-            // Play with walkie-talkie effect
-            const effectSource = audioContext.createMediaStreamSource(audioStream);
-            const effectProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-            
-            effectProcessor.onaudioprocess = function(e) {
-                const input = e.inputBuffer.getChannelData(0);
-                const output = e.outputBuffer.getChannelData(0);
-                applyWalkieEffect(input, output);
-            };
-            
-            effectSource.connect(effectProcessor);
-            effectProcessor.connect(audioContext.destination);
-            
-            synth.speak(utterance);
-        }
-    }
-    
-    function simulateReceiveAudio(blob) {
-        if (!isOn) return;
-        
-        const audioUrl = URL.createObjectURL(blob);
-        receiveAudio.src = audioUrl;
-        
-        // Apply effect based on current setting
-        switch (currentEffect) {
-            case 'radio':
-                receiveAudio.playbackRate = 1.0;
-                receiveAudio.preservesPitch = false;
-                break;
-            case 'walkie':
-                receiveAudio.playbackRate = 1.0;
-                receiveAudio.preservesPitch = true;
-                break;
-            case 'robot':
-                receiveAudio.playbackRate = 0.8;
-                receiveAudio.preservesPitch = false;
-                break;
-            case 'echo':
-                receiveAudio.playbackRate = 1.0;
-                receiveAudio.preservesPitch = true;
-                break;
-            default:
-                receiveAudio.playbackRate = 1.0;
-                receiveAudio.preservesPitch = true;
+            // Play power off sound
+            playBeep(400, 0.1, 0.1);
         }
         
-        receiveAudio.play();
-        
-        // Show radio wave animation
-        createRadioWave();
-    }
-    
-    function createRadioWave() {
-        const wave = document.createElement('div');
-        wave.classList.add('wave', 'active-wave');
-        radioWave.appendChild(wave);
-        
-        // Remove after animation completes
+        // Add screen activation effect
+        screen.classList.add('active');
         setTimeout(() => {
-            wave.remove();
-        }, 2000);
+            screen.classList.remove('active');
+        }, 300);
     }
     
-    function simulateSignalStrength() {
-        const bars = signalStrength.querySelectorAll('.signal-bar');
-        
-        setInterval(() => {
-            const strength = Math.floor(Math.random() * 6); // 0-5
-            
-            bars.forEach((bar, index) => {
-                if (index < strength) {
-                    bar.style.backgroundColor = '#2ecc71';
-                    bar.style.height = `${15 + index * 5}px`;
-                } else {
-                    bar.style.backgroundColor = '#95a5a6';
-                    bar.style.height = '15px';
-                }
-            });
-        }, 2000);
-    }
-    
-    function showNotification(message, isError = false) {
-        if (isError) {
-            notification.style.backgroundColor = '#e74c3c';
-        } else {
-            notification.style.backgroundColor = '#3498db';
-        }
-        
-        notificationText.textContent = message;
-        notification.classList.add('show');
-        
-        setTimeout(() => {
-            notification.classList.remove('show');
-        }, 3000);
-    }
-    
-    function updateUI() {
-        // Update channel display
+    function changeChannel(direction) {
+        currentChannel = Math.max(1, Math.min(99, currentChannel + direction));
         channelNumber.textContent = currentChannel.toString().padStart(2, '0');
         
-        // Update power button
-        if (isOn) {
-            powerBtn.innerHTML = '<i class="fas fa-power-off"></i>';
-            powerBtn.classList.add('active');
-        } else {
-            powerBtn.innerHTML = '<i class="fas fa-power-off"></i>';
-            powerBtn.classList.remove('active');
-        }
+        // Play channel change sound
+        playBeep(direction > 0 ? 800 : 400, 0.05, 0.2);
+        
+        // Add channel change effect
+        screen.classList.add('active');
+        setTimeout(() => {
+            screen.classList.remove('active');
+        }, 200);
+        
+        updateStatus(`CHANNEL ${currentChannel}`);
     }
-    
-    // Event Listeners
-    talkButton.addEventListener('mousedown', startTalking);
-    talkButton.addEventListener('touchstart', startTalking);
-    talkButton.addEventListener('mouseup', stopTalking);
-    talkButton.addEventListener('touchend', stopTalking);
-    talkButton.addEventListener('mouseleave', stopTalking);
-    
-    powerBtn.addEventListener('click', togglePower);
-    channelUpBtn.addEventListener('click', channelUp);
-    channelDownBtn.addEventListener('click', channelDown);
     
     function startTalking(e) {
         e.preventDefault();
@@ -403,15 +278,20 @@ document.addEventListener('DOMContentLoaded', function() {
         
         isTalking = true;
         talkButton.classList.add('active');
-        showNotification(`Transmitting on channel ${currentChannel}`);
+        antenna.classList.add('active');
+        updateStatus('TRANSMITTING');
+        
+        // Add screen glow effect
+        walkieBody.classList.add('active-screen');
+        screen.classList.add('active');
         
         // Start recording
         if (mediaRecorder && mediaRecorder.state === 'inactive') {
             mediaRecorder.start();
         }
         
-        // Create radio wave effect
-        createRadioWave();
+        // Play push-to-talk sound
+        playBeep(1200, 0.05, 0.05);
     }
     
     function stopTalking(e) {
@@ -420,82 +300,177 @@ document.addEventListener('DOMContentLoaded', function() {
         
         isTalking = false;
         talkButton.classList.remove('active');
-        showNotification(`Listening on channel ${currentChannel}`);
+        walkieBody.classList.remove('active-screen');
+        updateStatus(`CHANNEL ${currentChannel}`);
         
         // Stop recording
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             mediaRecorder.stop();
         }
+        
+        // Play release sound
+        playBeep(600, 0.05, 0.05);
     }
     
-    function togglePower() {
-        isOn = !isOn;
+    function simulateReceiveAudio(blob) {
+        if (!isOn) return;
+        
+        const audioUrl = URL.createObjectURL(blob);
+        receiveAudio.src = audioUrl;
+        
+        // Add receive effect
+        screen.classList.add('active');
+        setTimeout(() => {
+            screen.classList.remove('active');
+        }, 500);
+        
+        // Create light particles
+        createLightParticles();
+        
+        receiveAudio.play();
+        updateStatus('RECEIVING');
+    }
+    
+    function playBeep(frequency, duration, volume) {
+        if (!isOn || !audioContext) return;
+        
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.value = frequency;
+        gainNode.gain.value = volume;
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.start();
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+        oscillator.stop(audioContext.currentTime + duration);
+    }
+    
+    function updateStatus(text, isError = false) {
+        status.textContent = text;
+        status.style.color = isError ? '#ff4d4d' : '#b8c2cc';
+    }
+    
+    function createParticles() {
+        // Create initial particles for background
+        for (let i = 0; i < 20; i++) {
+            createParticle(true);
+        }
+    }
+    
+    function createLightParticles() {
+        // Create burst of particles for transmission/reception
+        for (let i = 0; i < 15; i++) {
+            setTimeout(() => {
+                createParticle(false);
+            }, i * 50);
+        }
+    }
+    
+    function createParticle(isBackground) {
+        const particle = document.createElement('div');
+        particle.classList.add('particle');
+        
+        const size = Math.random() * 3 + 1;
+        const posX = Math.random() * 100;
+        const posY = Math.random() * 100;
+        
+        particle.style.width = `${size}px`;
+        particle.style.height = `${size}px`;
+        particle.style.left = `${posX}%`;
+        particle.style.top = `${posY}%`;
+        
+        if (isBackground) {
+            particle.style.opacity = Math.random() * 0.1;
+            particle.style.background = `rgba(58, 123, 213, ${Math.random() * 0.3})`;
+            
+            // Slow floating animation for background particles
+            const duration = 20 + Math.random() * 30;
+            const delay = Math.random() * 10;
+            
+            particle.style.transition = `all ${duration}s linear ${delay}s`;
+            
+            // Random movement
+            setTimeout(() => {
+                particle.style.transform = `translate(${(Math.random() - 0.5) * 100}px, ${(Math.random() - 0.5) * 100}px)`;
+            }, 10);
+        } else {
+            particle.style.background = `rgba(255, 255, 255, ${Math.random() * 0.8 + 0.2})`;
+            particle.style.boxShadow = `0 0 ${Math.random() * 10 + 5}px white`;
+            
+            // Fast burst animation
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 50 + Math.random() * 100;
+            const duration = 0.5 + Math.random() * 1;
+            
+            particle.style.transition = `all ${duration}s ease-out`;
+            particle.style.opacity = '1';
+            
+            setTimeout(() => {
+                particle.style.transform = `translate(${Math.cos(angle) * distance}px, ${Math.sin(angle) * distance}px)`;
+                particle.style.opacity = '0';
+                
+                // Remove after animation
+                setTimeout(() => {
+                    particle.remove();
+                }, duration * 1000);
+            }, 10);
+        }
+        
+        lightParticles.appendChild(particle);
+    }
+    
+    function addButtonPressEffect(button) {
+        if (!isOn) return;
+        
+        // Add ripple effect
+        const ripple = document.createElement('div');
+        ripple.style.position = 'absolute';
+        ripple.style.width = '100%';
+        ripple.style.height = '100%';
+        ripple.style.background = 'radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 70%';
+        ripple.style.borderRadius = 'inherit';
+        ripple.style.top = '0';
+        ripple.style.left = '0';
+        ripple.style.opacity = '0.5';
+        ripple.style.transform = 'scale(0)';
+        ripple.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+        
+        button.appendChild(ripple);
+        
+        // Trigger animation
+        setTimeout(() => {
+            ripple.style.transform = 'scale(2)';
+            ripple.style.opacity = '0';
+        }, 10);
+        
+        // Remove after animation
+        setTimeout(() => {
+            ripple.remove();
+        }, 300);
+        
+        // Play button sound
+        playBeep(600, 0.05, 0.1);
+    }
+    
+    function updateUI() {
+        channelNumber.textContent = currentChannel.toString().padStart(2, '0');
         
         if (isOn) {
-            showNotification(`Power ON - Channel ${currentChannel}`);
-            connectionDot.classList.add('connected');
-            connectionText.textContent = "Connected";
+            powerLight.classList.add('on');
+            antenna.classList.add('active');
+            walkieBody.classList.add('active-screen');
+            powerBtn.classList.add('active');
+            updateStatus(`CHANNEL ${currentChannel}`);
         } else {
-            showNotification("Power OFF", true);
-            connectionDot.classList.remove('connected');
-            connectionText.textContent = "Disconnected";
-            
-            // Stop any current transmission
-            if (isTalking) {
-                stopTalking(new Event('forced'));
-            }
-        }
-        
-        updateUI();
-    }
-    
-    function channelUp() {
-        if (!isOn) return;
-        
-        currentChannel = Math.min(99, currentChannel + 1);
-        updateUI();
-        showNotification(`Switched to channel ${currentChannel}`);
-        
-        // Simulate channel change noise
-        if (audioContext) {
-            const oscillator = audioContext.createOscillator();
-            const gain = audioContext.createGain();
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.value = 800;
-            gain.gain.value = 0.1;
-            
-            oscillator.connect(gain);
-            gain.connect(audioContext.destination);
-            
-            oscillator.start();
-            gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
-            oscillator.stop(audioContext.currentTime + 0.3);
-        }
-    }
-    
-    function channelDown() {
-        if (!isOn) return;
-        
-        currentChannel = Math.max(1, currentChannel - 1);
-        updateUI();
-        showNotification(`Switched to channel ${currentChannel}`);
-        
-        // Simulate channel change noise
-        if (audioContext) {
-            const oscillator = audioContext.createOscillator();
-            const gain = audioContext.createGain();
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.value = 400;
-            gain.gain.value = 0.1;
-            
-            oscillator.connect(gain);
-            gain.connect(audioContext.destination);
-            
-            oscillator.start();
-            gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
-            oscillator.stop(audioContext.currentTime + 0.3);
+            powerLight.classList.remove('on');
+            antenna.classList.remove('active');
+            walkieBody.classList.remove('active-screen');
+            powerBtn.classList.remove('active');
+            updateStatus('POWER OFF');
         }
     }
     
