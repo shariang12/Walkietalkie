@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let destination;
     let mediaRecorder;
     let audioChunks = [];
+    let robotPhase = 0;
     
     // Initialize
     init();
@@ -51,6 +52,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Add light effect
                 addButtonPressEffect(this);
+                
+                // Apply effect immediately
+                updateAudioChain();
             });
         });
         
@@ -185,7 +189,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         robotPhase += input.length;
     }
-    let robotPhase = 0;
     
     function applyEchoEffect(input, output) {
         const delaySamples = audioContext.sampleRate * 0.3;
